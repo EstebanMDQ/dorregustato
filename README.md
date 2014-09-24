@@ -1,4 +1,4 @@
-# DORREGUSTATUS #
+# DORREGUSTATO #
 
 Termostato armado en base a tecnología arduino
 
@@ -9,4 +9,3 @@ Termostato armado en base a tecnología arduino
 * armar el código para que haga la magia
 * ...
 * profit
-
