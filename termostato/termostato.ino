@@ -6,10 +6,14 @@
 RTC_DS1307 rtc;
 
 // temp sensor
-float temp;
-float target_temp = 24.0;
+
+const float target_temp = 22.0;
 const int tempPin = A5;    // the analog pin used to read temp
 const int ledPin =  7;      // the number of the LED pin
+const int ledPin2 =  8;      // the number of the LED pin
+
+int onHours[] = {10, 12, 14, 16, 18, 20}; // horas en las que queda prendido
+int onDow[] = {1, 2, 3, 4, 5}; // 0 dom 6 sab , esta de lunes a viernes
 
 /*
 
@@ -46,80 +50,92 @@ void setup () {
   }
 
   // initialize pin 
-  pinMode(ledPin, OUTPUT);   
-  digitalWrite(ledPin, HIGH);  
-  delay(200);
+  pinMode(ledPin, OUTPUT);  // caldera
+  pinMode(ledPin2, OUTPUT);  // termostato funcionando
   digitalWrite(ledPin, LOW);  
-  delay(200);
-  digitalWrite(ledPin, HIGH);  
-  delay(200);
-  digitalWrite(ledPin, LOW);  
-  delay(200);
-
-
+  digitalWrite(ledPin2, LOW);  
 }
 
-float measure_temp()
+// read temp from pin p
+float measure_temp(int p)
 {
-  float tempK = (((analogRead(tempPin)/ 1023.0) * 5.0) * 100.0);  
+  float tempK = (((analogRead(p)/ 1023.0) * 5.0) * 100.0);  
   //Converts Kelvin to Celsius minus 2.5 degrees error
   float tempC = tempK - 273.0;   
 //  float tempF = ((tempK - 2.5) * 9 / 5) - 459.67;
   return tempK;
 }
 
-void loop () {
-    DateTime now = rtc.now();
-    
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(' ');
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.println();
-    
-    Serial.print(" since midnight 1/1/1970 = ");
-    Serial.print(now.unixtime());
-    Serial.print("s = ");
-    Serial.print(now.unixtime() / 86400L);
-    Serial.println("d");
-    
-    // calculate a date which is 7 days and 30 seconds into the future
-    DateTime future (now.unixtime() + 7 * 86400L + 30);
-    
-    Serial.print(" now + 7d + 30s: ");
-    Serial.print(future.year(), DEC);
-    Serial.print('/');
-    Serial.print(future.month(), DEC);
-    Serial.print('/');
-    Serial.print(future.day(), DEC);
-    Serial.print(' ');
-    Serial.print(future.hour(), DEC);
-    Serial.print(':');
-    Serial.print(future.minute(), DEC);
-    Serial.print(':');
-    Serial.print(future.second(), DEC);
-    Serial.println();
-
-
-    temp = measure_temp();
-    if( temp > target_temp ) {
-      digitalWrite(ledPin, LOW);
-    } else {
-      digitalWrite(ledPin, HIGH);
-    }
+// print datetime d to serial console
+void print_date(DateTime d) {
+  Serial.print(d.year(), DEC);
+  Serial.print('/');
+  Serial.print(d.month(), DEC);
+  Serial.print('/');
+  Serial.print(d.day(), DEC);
+  Serial.print(' ');
+  Serial.print(d.hour(), DEC);
+  Serial.print(':');
+  Serial.print(d.minute(), DEC);
+  Serial.print(':');
+  Serial.print(d.second(), DEC);
+  Serial.print(' D:');
+  Serial.print(d.dayOfWeek(), DEC);
+  Serial.println();
   
+//  Serial.print(" since midnight 1/1/1970 = ");
+//  Serial.print(d.unixtime());
+//  Serial.print("s = ");
+//  Serial.print(d.unixtime() / 86400L);
+//  Serial.println("d");
+  
+}
+
+boolean check_hour(DateTime t) {
+  int h = t.hour();
+  int dow = t.dayOfWeek();
+  boolean r = false;
+  for( int j=0; j<sizeof(onDow); j++) {
+    if( dow == onDow[j] ) {
+      r = true;
+      break;
+    }
+  }
+  if( r ){
+    for( int i=0; i<sizeof(onHours); i++) {
+      if(h == onHours[i]) {
+        return true;
+      }
+    }
+  }
+  return false;  
+}
+
+void loop () {
+  float temp;
+  DateTime d = rtc.now();
+  
+  print_date(d);    
+  
+  // si los minutos son pares, medimos la temp
+  // y prendemos el rele si temp esta debajo de target_temp
+  if( check_hour(d) ){
+    digitalWrite(ledPin2, HIGH);  // termostato on
+    temp = measure_temp(tempPin);
+
+    if( temp > target_temp ) {
+      digitalWrite(ledPin, LOW);  // caldera off
+    } else {
+      digitalWrite(ledPin, HIGH);  // caldera on
+    }
     Serial.print("temperature = ");
     Serial.print(temp);
     Serial.print("*C");
     Serial.println();
-   
-    Serial.println();
-    delay(3000);
+  } else {
+    digitalWrite(ledPin2, LOW);  // termostato off
+    digitalWrite(ledPin, LOW);  // caldera off
+  }
+  
+  delay(1000);  // wait 10 seconds
 }
