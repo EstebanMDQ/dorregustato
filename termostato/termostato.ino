@@ -137,5 +137,5 @@ void loop () {
     digitalWrite(ledPin, LOW);  // caldera off
   }
   
-  delay(1000);  // wait 10 seconds
+  delay(60000);  // wait 60 seconds
 }
