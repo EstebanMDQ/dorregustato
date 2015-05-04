@@ -14,3 +14,5 @@ Termostato armado en base a tecnología arduino
 
 para diseñar los circuitos podemos usar este software http://fritzing.org/
 
+el sketch necesita RTClib para funcionar, para eso copiar la que está en el repo
+al dir libraries de la app Arduino

@@ -5,15 +5,25 @@
 
 RTC_DS1307 rtc;
 
-// temp sensor
+// temperaturas de dia y noche
+const float on_temp = 22.0;  // temp dia
+const float off_temp = 15.0;   // temp noche
 
-const float target_temp = 22.0;
+// configuracion de pines
 const int tempPin = A5;    // the analog pin used to read temp
-const int ledPin =  7;      // the number of the LED pin
-const int ledPin2 =  8;      // the number of the LED pin
+const int heaterPin =  7;      // caldera on/off
+const int statusheaterPin =  8;      // status on/off
+const int overrideHeaterPin =  9;      // override led on/off
+const int overridePin = 6; // override switch
 
-int onHours[] = {10, 12, 14, 16, 18, 20}; // horas en las que queda prendido
+// configuracion horarios
+int onHours[] = {6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18}; // horas en las que queda prendido
 int onDow[] = {1, 2, 3, 4, 5}; // 0 dom 6 sab , esta de lunes a viernes
+
+// intervalo de checkeo
+const unsigned long overrideInterval = 600000; // 10 minutes system override
+unsigned long intervalCheck = 300000; // 5 minutes
+unsigned long previousMillis; // usado para checkear el loop cada 5 minutos
 
 /*
 
@@ -50,10 +60,12 @@ void setup () {
   }
 
   // initialize pin 
-  pinMode(ledPin, OUTPUT);  // caldera
-  pinMode(ledPin2, OUTPUT);  // termostato funcionando
-  digitalWrite(ledPin, LOW);  
-  digitalWrite(ledPin2, LOW);  
+  pinMode(heaterPin, OUTPUT);  // caldera
+  pinMode(statusheaterPin, OUTPUT);  // termostato funcionando
+  pinMode(overrideHeaterPin, OUTPUT);  // modo override
+  pinMode(overridePin, INPUT); // switch override
+  digitalWrite(heaterPin, LOW);  
+  digitalWrite(statusheaterPin, LOW);  
 }
 
 // read temp from pin p
@@ -112,30 +124,44 @@ boolean check_hour(DateTime t) {
 }
 
 void loop () {
-  float temp;
-  DateTime d = rtc.now();
-  
-  print_date(d);    
-  
-  // si los minutos son pares, medimos la temp
-  // y prendemos el rele si temp esta debajo de target_temp
-  if( check_hour(d) ){
-    digitalWrite(ledPin2, HIGH);  // termostato on
-    temp = measure_temp(tempPin);
 
-    if( temp > target_temp ) {
-      digitalWrite(ledPin, LOW);  // caldera off
+  unsigned long currentMillis = millis();
+ 
+  if( digitalRead(overridePin) == HIGH ){
+    intervalCheck += overrideInterval;
+    digitalWrite(heaterPin, HIGH);  // caldera off
+    digitalWrite(overrideHeaterPin, HIGH);  // led override on
+  } 
+ 
+  if(currentMillis - previousMillis >= intervalCheck) {
+    // save the last time you blinked the LED 
+    previousMillis = currentMillis;   
+    digitalWrite(overrideHeaterPin, LOW);  // led override off
+
+    float temp;
+    float target_temp;
+    DateTime d = rtc.now();
+    
+    print_date(d);    
+    
+    // choose the target temp
+    if( check_hour(d) ){
+      digitalWrite(statusheaterPin, HIGH);  // horario de trabajo
+      target_temp = on_temp;
     } else {
-      digitalWrite(ledPin, HIGH);  // caldera on
+      digitalWrite(statusheaterPin, LOW);  // fuera de horario
+      target_temp = off_temp;
+    }
+    temp = measure_temp(tempPin);
+  
+    if( temp > target_temp ) {
+      digitalWrite(heaterPin, LOW);  // caldera off
+    } else {
+      digitalWrite(heaterPin, HIGH);  // caldera on
     }
     Serial.print("temperature = ");
     Serial.print(temp);
     Serial.print("*C");
     Serial.println();
-  } else {
-    digitalWrite(ledPin2, LOW);  // termostato off
-    digitalWrite(ledPin, LOW);  // caldera off
   }
-  
-  delay(60000);  // wait 60 seconds
 }
