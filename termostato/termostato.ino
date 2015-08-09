@@ -17,13 +17,14 @@ const int overrideHeaterPin =  9;      // override led on/off
 const int overridePin = 6; // override switch
 
 // configuracion horarios
-int onHours[] = {9, 10, 11, 12, 13, 14, 15, 16, 17, 18}; // horas en las que queda prendido
+int onHours[] = {7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}; // horas en las que queda prendido
+//int onHours[] = {9, 10, 11, 12, 16, 17, 18}; // horas en las que queda prendido
 int onDow[] = {1, 2, 3, 4, 5}; // 0 dom 6 sab , esta de lunes a viernes
 
 // intervalo de checkeo
 const unsigned long overrideInterval = 600000; // 10 minutes system override
-const unsigned long intervalCheck = 300000; // 5 minutes
-unsigned long interval; // 5 minutes
+const unsigned long intervalCheck = 120000; // 2 minutes
+unsigned long interval; 
 unsigned long previousMillis; // usado para checkear el loop cada 5 minutos
 
 /*
@@ -128,19 +129,16 @@ void loop () {
 
   unsigned long currentMillis = millis();
  
-//  este deber'a ser el mecanismo de override, pero esta mal!!! 
-//  if( digitalRead(overridePin) == HIGH ){
-//    interval += overrideInterval;
-//    digitalWrite(heaterPin, HIGH);  // caldera on
-//    digitalWrite(overrideHeaterPin, HIGH);  // led override on
-//  } 
- 
-  if(currentMillis - previousMillis >= interval) {
-    // debug code
+  if( digitalRead(overridePin) == HIGH ){
+    interval = currentMillis - previousMillis + overrideInterval;
+    digitalWrite(heaterPin, LOW);  // caldera on
+    digitalWrite(overrideHeaterPin, HIGH);  // led override on
+    Serial.println("override");
     Serial.println(currentMillis);
-    Serial.println(previousMillis);
-    Serial.println(intervalCheck);
     Serial.println("");
+  } 
+  
+  if(currentMillis - previousMillis >= interval) {
 
     // save the last time you blinked the LED 
     previousMillis = currentMillis;   
@@ -167,9 +165,9 @@ void loop () {
     temp = measure_temp(tempPin);
   
     if( temp > target_temp ) {
-      digitalWrite(heaterPin, LOW);  // caldera off
+      digitalWrite(heaterPin, HIGH);  // caldera off
     } else {
-      digitalWrite(heaterPin, HIGH);  // caldera on
+      digitalWrite(heaterPin, LOW);  // caldera on
     }
     Serial.print("temperature = ");
     Serial.print(temp);
