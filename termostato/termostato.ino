@@ -95,7 +95,7 @@ void print_date(DateTime d) {
   Serial.print(d.second(), DEC);
   Serial.print(' D:');
   Serial.print(d.dayOfWeek(), DEC);
-  Serial.println();
+//  Serial.println();
   
 //  Serial.print(" since midnight 1/1/1970 = ");
 //  Serial.print(d.unixtime());
@@ -103,6 +103,19 @@ void print_date(DateTime d) {
 //  Serial.print(d.unixtime() / 86400L);
 //  Serial.println("d");
   
+}
+
+void serial_send_status(DateTime d, float temp, float target_temp, int override) {
+  print_date(d);
+  
+  Serial.print(" Temp Trabajo: ");
+  Serial.print(target_temp);
+  Serial.print(" Temp Actual: ");
+  Serial.print(temp);
+  Serial.print(" Override: ");
+  Serial.print(override);
+  
+  Serial.println();
 }
 
 boolean check_hour(DateTime t) {
@@ -128,14 +141,16 @@ boolean check_hour(DateTime t) {
 void loop () {
 
   unsigned long currentMillis = millis();
+  DateTime d = rtc.now();
  
   if( digitalRead(overridePin) == HIGH ){
     interval = currentMillis - previousMillis + overrideInterval;
     digitalWrite(heaterPin, LOW);  // caldera on
     digitalWrite(overrideHeaterPin, HIGH);  // led override on
-    Serial.println("override");
-    Serial.println(currentMillis);
-    Serial.println("");
+//    Serial.println("override");
+//    Serial.println(currentMillis);
+//    Serial.println("");
+    serial_send_status(d, 0, 0, 1);
   } 
   
   if(currentMillis - previousMillis >= interval) {
@@ -150,14 +165,14 @@ void loop () {
 
     float temp;
     float target_temp;
-    DateTime d = rtc.now();
     
-    print_date(d);    
+//    print_date(d);    
     
     // choose the target temp
     if( check_hour(d) ){
       digitalWrite(statusheaterPin, HIGH);  // horario de trabajo
       target_temp = on_temp;
+      
     } else {
       digitalWrite(statusheaterPin, LOW);  // fuera de horario
       target_temp = off_temp;
@@ -169,9 +184,11 @@ void loop () {
     } else {
       digitalWrite(heaterPin, LOW);  // caldera on
     }
-    Serial.print("temperature = ");
-    Serial.print(temp);
-    Serial.print("*C");
-    Serial.println();
+//    Serial.print("temperature = ");
+//    Serial.print(temp);
+//    Serial.print("*C");
+//    Serial.println();
+
+    serial_send_status(d, temp, target_temp, 0);
   }
 }
