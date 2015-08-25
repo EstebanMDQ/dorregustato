@@ -6,26 +6,37 @@
 RTC_DS1307 rtc;
 
 // temperaturas de dia y noche
-const float on_temp = 22.0;  // temp dia
-const float off_temp = 15.0;   // temp noche
+const float on_temp_min = 19.0;  // temp dia
+const float on_temp_max = 20.0;  // temp dia
+const float off_temp_min = 17.0;   // temp noche
+const float off_temp_max = 19.0;   // temp noche
 
 // configuracion de pines
 const int tempPin = A5;    // the analog pin used to read temp
 const int heaterPin =  7;      // caldera on/off
 const int statusheaterPin =  8;      // status on/off
 const int overrideHeaterPin =  9;      // override led on/off
-const int overridePin = 6; // override switch
+const int overridePin = 10; // override switch
+const int overrideWorkModePin =  6;      // override work mode on/off
 
 // configuracion horarios
-int onHours[] = {7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}; // horas en las que queda prendido
+int onHours[] = {6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}; // horas en las que queda prendido
 //int onHours[] = {9, 10, 11, 12, 16, 17, 18}; // horas en las que queda prendido
 int onDow[] = {1, 2, 3, 4, 5}; // 0 dom 6 sab , esta de lunes a viernes
 
 // intervalo de checkeo
 const unsigned long overrideInterval = 600000; // 10 minutes system override
-const unsigned long intervalCheck = 120000; // 2 minutes
+const unsigned long intervalCheck = 60000; // 1 minute
+const unsigned long workModeOverrideInterval = 10800000; // 3 horas
+
 unsigned long interval; 
 unsigned long previousMillis; // usado para checkear el loop cada 5 minutos
+unsigned long currentMillis;
+
+unsigned long workModeOverriden;
+int workModeOverrideStatus = 0;
+int heaterOverrideStatus = 0;
+int heater_status;
 
 /*
 
@@ -66,8 +77,11 @@ void setup () {
   pinMode(statusheaterPin, OUTPUT);  // termostato funcionando
   pinMode(overrideHeaterPin, OUTPUT);  // modo override
   pinMode(overridePin, INPUT); // switch override
+  pinMode(overrideWorkModePin, INPUT); // switch work mode override
   digitalWrite(heaterPin, LOW);  
-  digitalWrite(statusheaterPin, LOW);  
+  digitalWrite(statusheaterPin, LOW); 
+ 
+  workModeOverriden = 0; 
 }
 
 // read temp from pin p
@@ -95,6 +109,7 @@ void print_date(DateTime d) {
   Serial.print(d.second(), DEC);
   Serial.print(' D:');
   Serial.print(d.dayOfWeek(), DEC);
+  Serial.print('  ');
 //  Serial.println();
   
 //  Serial.print(" since midnight 1/1/1970 = ");
@@ -105,33 +120,39 @@ void print_date(DateTime d) {
   
 }
 
-void serial_send_status(DateTime d, float temp, float target_temp, int override) {
+void serial_send_status(DateTime d, float temp, float target_temp_min, float target_temp_max, int override, int heater_status) {
   print_date(d);
   
   Serial.print(" Temp Trabajo: ");
-  Serial.print(target_temp);
+  Serial.print(target_temp_min);
+  Serial.print(" / ");
+  Serial.print(target_temp_max);
+
   Serial.print(" Temp Actual: ");
   Serial.print(temp);
+  
+  Serial.print(" Estado: ");
+  Serial.print(heater_status);
   Serial.print(" Override: ");
   Serial.print(override);
   
-  Serial.println();
+  Serial.println("");
 }
 
 boolean check_hour(DateTime t) {
+  if( currentMillis < workModeOverriden ) {
+     return true; 
+  }
+  
   int h = t.hour();
   int dow = t.dayOfWeek();
   boolean r = false;
   for( int j=0; j<sizeof(onDow); j++) {
     if( dow == onDow[j] ) {
-      r = true;
-      break;
-    }
-  }
-  if( r ){
-    for( int i=0; i<sizeof(onHours); i++) {
-      if(h == onHours[i]) {
-        return true;
+      for( int i=0; i<sizeof(onHours); i++) {
+        if(h == onHours[i]) {
+          return true;
+        }
       }
     }
   }
@@ -140,21 +161,37 @@ boolean check_hour(DateTime t) {
 
 void loop () {
 
-  unsigned long currentMillis = millis();
+  currentMillis = millis();
   DateTime d = rtc.now();
- 
-  if( digitalRead(overridePin) == HIGH ){
-    interval = currentMillis - previousMillis + overrideInterval;
-    digitalWrite(heaterPin, LOW);  // caldera on
-    digitalWrite(overrideHeaterPin, HIGH);  // led override on
-//    Serial.println("override");
-//    Serial.println(currentMillis);
-//    Serial.println("");
-    serial_send_status(d, 0, 0, 1);
-  } 
+  float temp;
+  float target_temp_min;
+  float target_temp_max;
+
+// desactive el switch de override 
+//  if( heaterOverrideStatus == 0 && digitalRead(overridePin) == HIGH ){
+//    heaterOverrideStatus = 1;
+//    interval = currentMillis - previousMillis + overrideInterval;
+//    digitalWrite(heaterPin, LOW);  // caldera on
+//    digitalWrite(overrideHeaterPin, HIGH);  // led override on
+//    temp = measure_temp(tempPin);
+//    serial_send_status(d, temp, 0, 0, 1, 1);
+//  } 
+  
+  if( workModeOverrideStatus == 0 && digitalRead(overrideWorkModePin) == HIGH ) {
+    workModeOverrideStatus = 1;
+    workModeOverriden = currentMillis + workModeOverrideInterval;
+    Serial.println("work mode overriden");
+  }
+  if( currentMillis > workModeOverrideInterval && workModeOverrideStatus == 1) {
+    workModeOverrideStatus = 0;
+    workModeOverriden = 0;
+    Serial.println("work mode override finished");
+  }
   
   if(currentMillis - previousMillis >= interval) {
-
+    // set the override heater check status to 0
+    heaterOverrideStatus = 0;
+    
     // save the last time you blinked the LED 
     previousMillis = currentMillis;   
     digitalWrite(overrideHeaterPin, LOW);  // led override off
@@ -163,32 +200,34 @@ void loop () {
     // en caso de que lo hallamos cambiado con el override
     interval = intervalCheck; 
 
-    float temp;
-    float target_temp;
     
 //    print_date(d);    
     
     // choose the target temp
     if( check_hour(d) ){
       digitalWrite(statusheaterPin, HIGH);  // horario de trabajo
-      target_temp = on_temp;
-      
+      target_temp_min = on_temp_min;
+      target_temp_max = on_temp_max;      
     } else {
       digitalWrite(statusheaterPin, LOW);  // fuera de horario
-      target_temp = off_temp;
+      target_temp_min = off_temp_min;
+      target_temp_max = off_temp_max;
     }
     temp = measure_temp(tempPin);
   
-    if( temp > target_temp ) {
-      digitalWrite(heaterPin, HIGH);  // caldera off
-    } else {
+    if( temp < target_temp_min ) {
       digitalWrite(heaterPin, LOW);  // caldera on
+      heater_status = 1;
+    }  
+    if( temp > target_temp_max ) {
+      digitalWrite(heaterPin, HIGH);  // caldera off
+      heater_status = 0;
     }
 //    Serial.print("temperature = ");
 //    Serial.print(temp);
 //    Serial.print("*C");
 //    Serial.println();
 
-    serial_send_status(d, temp, target_temp, 0);
+    serial_send_status(d, temp, target_temp_min, target_temp_max, 0, heater_status);
   }
 }
